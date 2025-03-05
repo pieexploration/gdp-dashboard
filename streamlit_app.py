@@ -7,10 +7,6 @@ import concurrent.futures
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
 
 # List of user-agent strings to mimic different browsers/devices
 USER_AGENTS = [
@@ -25,10 +21,6 @@ USER_AGENTS = [
 def random_delay(min_delay=30, max_delay=60):
     delay = random.uniform(min_delay, max_delay)
     time.sleep(delay)  # Pause execution for a random amount of time
-
-# Function to simulate scrolling on the page (human-like behavior)
-def scroll_page(driver):
-    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
 # Function to handle 503 errors and mimic human behavior
 def fetch_url(url, proxy=None, retries=3):
@@ -223,4 +215,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
+
+
+
