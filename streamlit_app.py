@@ -72,47 +72,57 @@ def extract_seller_info(url, proxy=None, base_delay=100):
         "Adresse commerciale 4": "missing data",
         "Adresse commerciale 5": "missing data",
         "Adresse commerciale 6": "missing data",
-        "Adresse commerciale 7": "missing data",  # New column
-        "Adresse commerciale 8": "missing data"   # New column
+        "Adresse commerciale 7": "missing data",
+        "Adresse commerciale 8": "missing data"
     }
 
-    seller_info = soup.find("div", id="page-section-detail-seller-info")
-    if seller_info:
-        # List of possible email labels
-        email_labels = ["E-mail", "email", "EMAIL", "e-mail", "mail"]
+    # Try to find the seller info container in both possible structures
+    seller_info = soup.find("div", id="page-section-detail-seller-info") or soup.find("div", class_="a-box a-spacing-none a-color-base-background box-section")
 
-        # Extract email using all possible labels
-        for label in email_labels:
-            email_label = seller_info.find("span", text=lambda x: x and label in x)
-            if email_label:
-                email_span = email_label.find_next("span")
-                if email_span:
-                    data["E-mail"] = email_span.text.strip().lower()  # Ensure email is lowercase
-                    break  # Stop searching once email is found
+    if seller_info:
+        # Extract Nom commercial
+        nom_commercial = seller_info.find("span", text=lambda x: x and "Nom commercial:" in x)
+        if nom_commercial:
+            data["Nom commercial"] = format_text(nom_commercial.find_next("span").text.strip())
+
+        # Extract Type d'activité
+        type_activite = seller_info.find("span", text=lambda x: x and "Type d'activité:" in x)
+        if type_activite:
+            data["Type d'activité"] = format_text(type_activite.find_next("span").text.strip())
+
+        # Extract Numéro de registre de commerce
+        registre_commerce = seller_info.find("span", text=lambda x: x and "Numéro de registre de commerce:" in x)
+        if registre_commerce:
+            data["Numéro de registre de commerce"] = format_text(registre_commerce.find_next("span").text.strip())
+
+        # Extract Numéro TVA
+        num_tva = seller_info.find("span", text=lambda x: x and "Numéro TVA:" in x)
+        if num_tva:
+            data["Numéro TVA"] = format_text(num_tva.find_next("span").text.strip())
+
+        # Extract Numéro de téléphone
+        num_telephone = seller_info.find("span", text=lambda x: x and "Numéro de téléphone:" in x)
+        if num_telephone:
+            data["Numéro de téléphone"] = format_text(num_telephone.find_next("span").text.strip())
+
+        # Extract E-mail
+        email = seller_info.find("span", text=lambda x: x and "E-mail&nbsp;:" in x)
+        if email:
+            data["E-mail"] = email.find_next("span").text.strip().lower()
 
         # If email is still missing, search for any text containing "@"
         if data["E-mail"] == "missing data":
             for span in seller_info.find_all("span"):
                 if "@" in span.text:
-                    data["Possible Email"] = span.text.strip().lower()  # Ensure email is lowercase
+                    data["Possible Email"] = span.text.strip().lower()
                     break
 
-        # Extract other fields
-        for row in seller_info.find_all("div", class_="a-row"):
-            if "Nom commercial:" in row.text:
-                data["Nom commercial"] = format_text(row.find("span", class_=False).text.strip())
-            elif "Type d'activité:" in row.text:
-                data["Type d'activité"] = format_text(row.find("span", class_=False).text.strip())
-            elif "Numéro de registre de commerce:" in row.text:
-                data["Numéro de registre de commerce"] = format_text(row.find("span", class_=False).text.strip())
-            elif "Numéro TVA:" in row.text:
-                data["Numéro TVA"] = format_text(row.find("span", class_=False).text.strip())
-            elif "Numéro de téléphone:" in row.text:
-                data["Numéro de téléphone"] = format_text(row.find("span", class_=False).text.strip())
-            elif "Adresse commerciale:" in row.text:
-                address_lines = row.find_next_siblings("div", class_="indent-left")
-                for i, line in enumerate(address_lines[:8]):  # Updated to 8 columns
-                    data[f"Adresse commerciale {i+1}"] = format_text(line.text.strip())
+        # Extract Adresse commerciale
+        adresse = seller_info.find("span", text=lambda x: x and "Adresse commerciale:" in x)
+        if adresse:
+            address_lines = adresse.find_next_siblings("div", class_="indent-left")
+            for i, line in enumerate(address_lines[:8]):
+                data[f"Adresse commerciale {i+1}"] = format_text(line.text.strip())
 
     return data
 
@@ -123,7 +133,7 @@ def save_to_csv(data_list, filename="amazon_sellers.csv"):
         "Numéro TVA", "Numéro de téléphone", "E-mail", "Possible Email", 
         "Adresse commerciale 1", "Adresse commerciale 2", "Adresse commerciale 3", 
         "Adresse commerciale 4", "Adresse commerciale 5", "Adresse commerciale 6",
-        "Adresse commerciale 7", "Adresse commerciale 8"  # New columns
+        "Adresse commerciale 7", "Adresse commerciale 8"
     ]
 
     with open(filename, "a", newline="", encoding="utf-8") as file:
