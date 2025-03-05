@@ -7,6 +7,10 @@ import concurrent.futures
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 
 # List of user-agent strings to mimic different browsers/devices
 USER_AGENTS = [
@@ -16,6 +20,15 @@ USER_AGENTS = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
     "Mozilla/5.0 (Linux; Android 10; SM-A505FN) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
 ]
+
+# Function to randomize delays between requests
+def random_delay(min_delay=30, max_delay=60):
+    delay = random.uniform(min_delay, max_delay)
+    time.sleep(delay)  # Pause execution for a random amount of time
+
+# Function to simulate scrolling on the page (human-like behavior)
+def scroll_page(driver):
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 
 # Function to handle 503 errors and mimic human behavior
 def fetch_url(url, proxy=None, retries=3):
@@ -27,14 +40,14 @@ def fetch_url(url, proxy=None, retries=3):
     for attempt in range(retries):
         try:
             # Add a random delay before each request
-            time.sleep(random.uniform(2, 5))  # Random delay between 2 and 5 seconds
+            random_delay(30, 60)  # Random delay between 30 and 60 seconds
             response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
             response.raise_for_status()
             return response
         except requests.exceptions.HTTPError as e:
             if response.status_code == 503:
                 st.warning(f"503 Error for {url}. Retrying ({attempt + 1}/{retries})...")
-                time.sleep(random.uniform(5, 10))  # Wait before retrying
+                random_delay(30, 60)  # Wait before retrying
             else:
                 raise e
     raise requests.exceptions.HTTPError(f"Failed to fetch {url} after {retries} retries.")
@@ -134,13 +147,13 @@ def main():
 
     # Recommended delay information
     st.write("### Recommended Delay Between Requests:")
-    st.write("- **Minimum Delay:** 2-5 seconds between requests.")
-    st.write("- **Moderate Delay:** 10-15 seconds for more cautious scraping.")
-    st.write("- **Maximum Delay:** 20-30 seconds to stay under the radar and avoid detection.")
+    st.write("- **Minimum Delay:** 30-60 seconds between requests.")
+    st.write("- **Moderate Delay:** 60-120 seconds for more cautious scraping.")
+    st.write("- **Maximum Delay:** 120-300 seconds to stay under the radar and avoid detection.")
 
     # Settings
-    max_workers = st.slider("Max concurrent requests", 1, 10, 5, help="Adjust the number of concurrent requests.")
-    delay = st.slider("Random delay between requests (seconds)", 2, 30, 5, help="Add a random delay to avoid being blocked. Minimum delay is 2 seconds.")
+    max_workers = st.slider("Max concurrent requests", 1, 5, 5, help="Adjust the number of concurrent requests. Maximum is 5.")
+    delay = st.slider("Random delay between requests (seconds)", 30, 300, 60, help="Add a random delay to avoid being blocked. Minimum delay is 30 seconds.")
 
     if st.button("Start Scraping") and urls:
         total_urls = len(urls)
@@ -175,7 +188,7 @@ def main():
                     f"Elapsed time: {timedelta(seconds=int(elapsed_time))} | "
                     f"Estimated time remaining: {timedelta(seconds=int(estimated_time_remaining))}"
                 )
-                time.sleep(random.uniform(2, delay))  # Random delay between 2 and user-specified delay
+                random_delay(30, delay)  # Random delay between 30 and user-specified delay
 
         # Save results to CSV
         filename = f"amazon_sellers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
@@ -210,3 +223,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
