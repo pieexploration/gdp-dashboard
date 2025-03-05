@@ -8,16 +8,41 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
-# Extract seller information
-def extract_seller_info(url, proxy=None):
+# List of user-agent strings to mimic different browsers/devices
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 10; SM-A505FN) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
+]
+
+# Function to handle 503 errors and mimic human behavior
+def fetch_url(url, proxy=None, retries=3):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        "User-Agent": random.choice(USER_AGENTS)  # Randomize user-agent
     }
     proxies = {"http": proxy, "https": proxy} if proxy else None
 
+    for attempt in range(retries):
+        try:
+            # Add a random delay before each request
+            time.sleep(random.uniform(2, 5))  # Random delay between 2 and 5 seconds
+            response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
+            response.raise_for_status()
+            return response
+        except requests.exceptions.HTTPError as e:
+            if response.status_code == 503:
+                st.warning(f"503 Error for {url}. Retrying ({attempt + 1}/{retries})...")
+                time.sleep(random.uniform(5, 10))  # Wait before retrying
+            else:
+                raise e
+    raise requests.exceptions.HTTPError(f"Failed to fetch {url} after {retries} retries.")
+
+# Extract seller information
+def extract_seller_info(url, proxy=None):
     try:
-        response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
-        response.raise_for_status()
+        response = fetch_url(url, proxy)
     except requests.RequestException as e:
         return {"URL": url, "Error": str(e)}
 
@@ -107,9 +132,15 @@ def main():
     urls = urls_input.split('\n') if urls_input else []
     proxy = st.text_input("Enter Proxy (Optional):")
 
+    # Recommended delay information
+    st.write("### Recommended Delay Between Requests:")
+    st.write("- **Minimum Delay:** 2-5 seconds between requests.")
+    st.write("- **Moderate Delay:** 10-15 seconds for more cautious scraping.")
+    st.write("- **Maximum Delay:** 20-30 seconds to stay under the radar and avoid detection.")
+
     # Settings
     max_workers = st.slider("Max concurrent requests", 1, 10, 5, help="Adjust the number of concurrent requests.")
-    delay = st.slider("Random delay between requests (seconds)", 1, 10, 3, help="Add a random delay to avoid being blocked.")
+    delay = st.slider("Random delay between requests (seconds)", 2, 30, 5, help="Add a random delay to avoid being blocked. Minimum delay is 2 seconds.")
 
     if st.button("Start Scraping") and urls:
         total_urls = len(urls)
@@ -144,7 +175,7 @@ def main():
                     f"Elapsed time: {timedelta(seconds=int(elapsed_time))} | "
                     f"Estimated time remaining: {timedelta(seconds=int(estimated_time_remaining))}"
                 )
-                time.sleep(random.uniform(1, delay))  # Random delay
+                time.sleep(random.uniform(2, delay))  # Random delay between 2 and user-specified delay
 
         # Save results to CSV
         filename = f"amazon_sellers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
@@ -179,4 +210,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
