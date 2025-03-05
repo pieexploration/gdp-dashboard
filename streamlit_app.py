@@ -162,6 +162,14 @@ def main():
 
         start_time = time.time()
 
+        # Generate a unique filename for the CSV file
+        filename = f"amazon_sellers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+        # Display the download link and timer
+        st.write(f"### Download Link:")
+        st.write(f"Once scraping is complete, you can download the results here: [Download CSV](/{filename})")
+        st.write(f"Estimated time remaining: Calculating...")
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(extract_seller_info, url.strip(), proxy, delay): url for url in urls if url.strip()}
             for index, future in enumerate(concurrent.futures.as_completed(futures)):
@@ -186,7 +194,6 @@ def main():
                 time.sleep(random_delay(delay))  # Random delay around user-specified delay
 
         # Save results to CSV
-        filename = f"amazon_sellers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         save_to_csv(all_data, filename)
 
         # Display preview of the first 10 results
