@@ -18,9 +18,13 @@ USER_AGENTS = [
 ]
 
 # Function to randomize delays between requests
-def random_delay(min_delay=30, max_delay=60):
+def random_delay(min_delay=100, max_delay=120):
     delay = random.uniform(min_delay, max_delay)
     time.sleep(delay)  # Pause execution for a random amount of time
+
+# Function to format text (capitalize first letter of each word)
+def format_text(text):
+    return " ".join(word.capitalize() for word in text.split())
 
 # Function to handle 503 errors and mimic human behavior
 def fetch_url(url, proxy=None, retries=3):
@@ -32,14 +36,14 @@ def fetch_url(url, proxy=None, retries=3):
     for attempt in range(retries):
         try:
             # Add a random delay before each request
-            random_delay(30, 60)  # Random delay between 30 and 60 seconds
+            random_delay(100, 120)  # Random delay between 100 and 120 seconds
             response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
             response.raise_for_status()
             return response
         except requests.exceptions.HTTPError as e:
             if response.status_code == 503:
                 st.warning(f"503 Error for {url}. Retrying ({attempt + 1}/{retries})...")
-                random_delay(30, 60)  # Wait before retrying
+                random_delay(100, 120)  # Wait before retrying
             else:
                 raise e
     raise requests.exceptions.HTTPError(f"Failed to fetch {url} after {retries} retries.")
@@ -84,32 +88,32 @@ def extract_seller_info(url, proxy=None):
             if email_label:
                 email_span = email_label.find_next("span")
                 if email_span:
-                    data["E-mail"] = email_span.text.strip()
+                    data["E-mail"] = email_span.text.strip().lower()  # Ensure email is lowercase
                     break  # Stop searching once email is found
 
         # If email is still missing, search for any text containing "@"
         if data["E-mail"] == "missing data":
             for span in seller_info.find_all("span"):
                 if "@" in span.text:
-                    data["Possible Email"] = span.text.strip()
+                    data["Possible Email"] = span.text.strip().lower()  # Ensure email is lowercase
                     break
 
         # Extract other fields
         for row in seller_info.find_all("div", class_="a-row"):
             if "Nom commercial:" in row.text:
-                data["Nom commercial"] = row.find("span", class_=False).text.strip()
+                data["Nom commercial"] = format_text(row.find("span", class_=False).text.strip())
             elif "Type d'activité:" in row.text:
-                data["Type d'activité"] = row.find("span", class_=False).text.strip()
+                data["Type d'activité"] = format_text(row.find("span", class_=False).text.strip())
             elif "Numéro de registre de commerce:" in row.text:
-                data["Numéro de registre de commerce"] = row.find("span", class_=False).text.strip()
+                data["Numéro de registre de commerce"] = format_text(row.find("span", class_=False).text.strip())
             elif "Numéro TVA:" in row.text:
-                data["Numéro TVA"] = row.find("span", class_=False).text.strip()
+                data["Numéro TVA"] = format_text(row.find("span", class_=False).text.strip())
             elif "Numéro de téléphone:" in row.text:
-                data["Numéro de téléphone"] = row.find("span", class_=False).text.strip()
+                data["Numéro de téléphone"] = format_text(row.find("span", class_=False).text.strip())
             elif "Adresse commerciale:" in row.text:
                 address_lines = row.find_next_siblings("div", class_="indent-left")
                 for i, line in enumerate(address_lines[:8]):  # Updated to 8 columns
-                    data[f"Adresse commerciale {i+1}"] = line.text.strip()
+                    data[f"Adresse commerciale {i+1}"] = format_text(line.text.strip())
 
     return data
 
@@ -139,13 +143,13 @@ def main():
 
     # Recommended delay information
     st.write("### Recommended Delay Between Requests:")
-    st.write("- **Minimum Delay:** 30-60 seconds between requests.")
-    st.write("- **Moderate Delay:** 60-120 seconds for more cautious scraping.")
-    st.write("- **Maximum Delay:** 120-300 seconds to stay under the radar and avoid detection.")
+    st.write("- **Minimum Delay:** 100-120 seconds between requests.")
+    st.write("- **Moderate Delay:** 120-180 seconds for more cautious scraping.")
+    st.write("- **Maximum Delay:** 180-300 seconds to stay under the radar and avoid detection.")
 
     # Settings
-    max_workers = st.slider("Max concurrent requests", 1, 5, 5, help="Adjust the number of concurrent requests. Maximum is 5.")
-    delay = st.slider("Random delay between requests (seconds)", 30, 300, 60, help="Add a random delay to avoid being blocked. Minimum delay is 30 seconds.")
+    max_workers = st.slider("Max concurrent requests", 1, 5, 1, help="Adjust the number of concurrent requests. Maximum is 5.")
+    delay = st.slider("Random delay between requests (seconds)", 100, 300, 100, help="Add a random delay to avoid being blocked. Minimum delay is 100 seconds.")
 
     if st.button("Start Scraping") and urls:
         total_urls = len(urls)
@@ -180,7 +184,7 @@ def main():
                     f"Elapsed time: {timedelta(seconds=int(elapsed_time))} | "
                     f"Estimated time remaining: {timedelta(seconds=int(estimated_time_remaining))}"
                 )
-                random_delay(30, delay)  # Random delay between 30 and user-specified delay
+                random_delay(100, delay)  # Random delay between 100 and user-specified delay
 
         # Save results to CSV
         filename = f"amazon_sellers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
@@ -215,6 +219,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
