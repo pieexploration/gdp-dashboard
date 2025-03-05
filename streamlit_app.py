@@ -18,16 +18,15 @@ USER_AGENTS = [
 ]
 
 # Function to randomize delays between requests
-def random_delay(min_delay=100, max_delay=120):
-    delay = random.uniform(min_delay, max_delay)
-    time.sleep(delay)  # Pause execution for a random amount of time
+def random_delay(base_delay):
+    return random.uniform(base_delay - 10, base_delay + 10)  # Randomize delay slightly
 
 # Function to format text (capitalize first letter of each word)
 def format_text(text):
     return " ".join(word.capitalize() for word in text.split())
 
 # Function to handle 503 errors and mimic human behavior
-def fetch_url(url, proxy=None, retries=3):
+def fetch_url(url, proxy=None, retries=3, base_delay=100):
     headers = {
         "User-Agent": random.choice(USER_AGENTS)  # Randomize user-agent
     }
@@ -36,22 +35,22 @@ def fetch_url(url, proxy=None, retries=3):
     for attempt in range(retries):
         try:
             # Add a random delay before each request
-            random_delay(100, 120)  # Random delay between 100 and 120 seconds
+            time.sleep(random_delay(base_delay))  # Random delay around base_delay
             response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
             response.raise_for_status()
             return response
         except requests.exceptions.HTTPError as e:
             if response.status_code == 503:
                 st.warning(f"503 Error for {url}. Retrying ({attempt + 1}/{retries})...")
-                random_delay(100, 120)  # Wait before retrying
+                time.sleep(random_delay(base_delay))  # Wait before retrying
             else:
                 raise e
     raise requests.exceptions.HTTPError(f"Failed to fetch {url} after {retries} retries.")
 
 # Extract seller information
-def extract_seller_info(url, proxy=None):
+def extract_seller_info(url, proxy=None, base_delay=100):
     try:
-        response = fetch_url(url, proxy)
+        response = fetch_url(url, proxy, base_delay=base_delay)
     except requests.RequestException as e:
         return {"URL": url, "Error": str(e)}
 
@@ -143,13 +142,13 @@ def main():
 
     # Recommended delay information
     st.write("### Recommended Delay Between Requests:")
-    st.write("- **Minimum Delay:** 100-120 seconds between requests.")
+    st.write("- **Minimum Delay:** 60-120 seconds between requests.")
     st.write("- **Moderate Delay:** 120-180 seconds for more cautious scraping.")
     st.write("- **Maximum Delay:** 180-300 seconds to stay under the radar and avoid detection.")
 
     # Settings
     max_workers = st.slider("Max concurrent requests", 1, 5, 1, help="Adjust the number of concurrent requests. Maximum is 5.")
-    delay = st.slider("Random delay between requests (seconds)", 100, 300, 100, help="Add a random delay to avoid being blocked. Minimum delay is 100 seconds.")
+    delay = st.slider("Random delay between requests (seconds)", 60, 300, 100, help="Add a random delay to avoid being blocked. Minimum delay is 60 seconds.")
 
     if st.button("Start Scraping") and urls:
         total_urls = len(urls)
@@ -164,7 +163,7 @@ def main():
         start_time = time.time()
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(extract_seller_info, url.strip(), proxy): url for url in urls if url.strip()}
+            futures = {executor.submit(extract_seller_info, url.strip(), proxy, delay): url for url in urls if url.strip()}
             for index, future in enumerate(concurrent.futures.as_completed(futures)):
                 result = future.result()
                 if "Error" in result:
@@ -184,7 +183,7 @@ def main():
                     f"Elapsed time: {timedelta(seconds=int(elapsed_time))} | "
                     f"Estimated time remaining: {timedelta(seconds=int(estimated_time_remaining))}"
                 )
-                random_delay(100, delay)  # Random delay between 100 and user-specified delay
+                time.sleep(random_delay(delay))  # Random delay around user-specified delay
 
         # Save results to CSV
         filename = f"amazon_sellers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
