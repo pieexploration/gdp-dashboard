@@ -35,7 +35,7 @@ USER_AGENTS = [
 
 def random_delay(base_delay):
     """Add random delay between requests to avoid detection"""
-    return random.uniform(base_delay - 10, base_delay + 10)
+    return random.uniform(base_delay - 20, base_delay + 20)
 
 def format_text(text):
     """Format text with proper capitalization"""
@@ -165,7 +165,7 @@ def main():
         with col1:
             delay = st.slider(
                 "Random delay between requests (seconds)",
-                180, 300, 250,
+                45, 300, 200,
                 help="Adding random delays helps avoid detection"
             )
         with col2:
