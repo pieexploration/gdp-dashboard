@@ -8,16 +8,49 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
-# Extract seller information
-def extract_seller_info(url, proxy=None):
+# List of user-agent strings to mimic different browsers/devices
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 10; SM-A505FN) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
+]
+
+# Function to randomize delays between requests
+def random_delay(base_delay):
+    return random.uniform(base_delay - 10, base_delay + 10)  # Randomize delay slightly
+
+# Function to format text (capitalize first letter of each word)
+def format_text(text):
+    return " ".join(word.capitalize() for word in text.split())
+
+# Function to handle 503 errors and mimic human behavior
+def fetch_url(url, proxy=None, retries=3, base_delay=100):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        "User-Agent": random.choice(USER_AGENTS)  # Randomize user-agent
     }
     proxies = {"http": proxy, "https": proxy} if proxy else None
 
+    for attempt in range(retries):
+        try:
+            # Add a random delay before each request
+            time.sleep(random_delay(base_delay))  # Random delay around base_delay
+            response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
+            response.raise_for_status()
+            return response
+        except requests.exceptions.HTTPError as e:
+            if response.status_code == 503:
+                st.warning(f"503 Error for {url}. Retrying ({attempt + 1}/{retries})...")
+                time.sleep(random_delay(base_delay))  # Wait before retrying
+            else:
+                raise e
+    raise requests.exceptions.HTTPError(f"Failed to fetch {url} after {retries} retries.")
+
+# Extract seller information
+def extract_seller_info(url, proxy=None, base_delay=100):
     try:
-        response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
-        response.raise_for_status()
+        response = fetch_url(url, proxy, base_delay=base_delay)
     except requests.RequestException as e:
         return {"URL": url, "Error": str(e)}
 
@@ -39,47 +72,57 @@ def extract_seller_info(url, proxy=None):
         "Adresse commerciale 4": "missing data",
         "Adresse commerciale 5": "missing data",
         "Adresse commerciale 6": "missing data",
-        "Adresse commerciale 7": "missing data",  # New column
-        "Adresse commerciale 8": "missing data"   # New column
+        "Adresse commerciale 7": "missing data",
+        "Adresse commerciale 8": "missing data"
     }
 
-    seller_info = soup.find("div", id="page-section-detail-seller-info")
-    if seller_info:
-        # List of possible email labels
-        email_labels = ["E-mail", "email", "EMAIL", "e-mail", "mail"]
+    # Try to find the seller info container in both possible structures
+    seller_info = soup.find("div", id="page-section-detail-seller-info") or soup.find("div", class_="a-box a-spacing-none a-color-base-background box-section")
 
-        # Extract email using all possible labels
-        for label in email_labels:
-            email_label = seller_info.find("span", text=lambda x: x and label in x)
-            if email_label:
-                email_span = email_label.find_next("span")
-                if email_span:
-                    data["E-mail"] = email_span.text.strip()
-                    break  # Stop searching once email is found
+    if seller_info:
+        # Extract Nom commercial
+        nom_commercial = seller_info.find("span", text=lambda x: x and "Nom commercial:" in x)
+        if nom_commercial:
+            data["Nom commercial"] = format_text(nom_commercial.find_next("span").text.strip())
+
+        # Extract Type d'activité
+        type_activite = seller_info.find("span", text=lambda x: x and "Type d'activité:" in x)
+        if type_activite:
+            data["Type d'activité"] = format_text(type_activite.find_next("span").text.strip())
+
+        # Extract Numéro de registre de commerce
+        registre_commerce = seller_info.find("span", text=lambda x: x and "Numéro de registre de commerce:" in x)
+        if registre_commerce:
+            data["Numéro de registre de commerce"] = format_text(registre_commerce.find_next("span").text.strip())
+
+        # Extract Numéro TVA
+        num_tva = seller_info.find("span", text=lambda x: x and "Numéro TVA:" in x)
+        if num_tva:
+            data["Numéro TVA"] = format_text(num_tva.find_next("span").text.strip())
+
+        # Extract Numéro de téléphone
+        num_telephone = seller_info.find("span", text=lambda x: x and "Numéro de téléphone:" in x)
+        if num_telephone:
+            data["Numéro de téléphone"] = format_text(num_telephone.find_next("span").text.strip())
+
+        # Extract E-mail
+        email = seller_info.find("span", text=lambda x: x and "E-mail&nbsp;:" in x)
+        if email:
+            data["E-mail"] = email.find_next("span").text.strip().lower()
 
         # If email is still missing, search for any text containing "@"
         if data["E-mail"] == "missing data":
             for span in seller_info.find_all("span"):
                 if "@" in span.text:
-                    data["Possible Email"] = span.text.strip()
+                    data["Possible Email"] = span.text.strip().lower()
                     break
 
-        # Extract other fields
-        for row in seller_info.find_all("div", class_="a-row"):
-            if "Nom commercial:" in row.text:
-                data["Nom commercial"] = row.find("span", class_=False).text.strip()
-            elif "Type d'activité:" in row.text:
-                data["Type d'activité"] = row.find("span", class_=False).text.strip()
-            elif "Numéro de registre de commerce:" in row.text:
-                data["Numéro de registre de commerce"] = row.find("span", class_=False).text.strip()
-            elif "Numéro TVA:" in row.text:
-                data["Numéro TVA"] = row.find("span", class_=False).text.strip()
-            elif "Numéro de téléphone:" in row.text:
-                data["Numéro de téléphone"] = row.find("span", class_=False).text.strip()
-            elif "Adresse commerciale:" in row.text:
-                address_lines = row.find_next_siblings("div", class_="indent-left")
-                for i, line in enumerate(address_lines[:8]):  # Updated to 8 columns
-                    data[f"Adresse commerciale {i+1}"] = line.text.strip()
+        # Extract Adresse commerciale
+        adresse = seller_info.find("span", text=lambda x: x and "Adresse commerciale:" in x)
+        if adresse:
+            address_lines = adresse.find_next_siblings("div", class_="indent-left")
+            for i, line in enumerate(address_lines[:8]):
+                data[f"Adresse commerciale {i+1}"] = format_text(line.text.strip())
 
     return data
 
@@ -90,7 +133,7 @@ def save_to_csv(data_list, filename="amazon_sellers.csv"):
         "Numéro TVA", "Numéro de téléphone", "E-mail", "Possible Email", 
         "Adresse commerciale 1", "Adresse commerciale 2", "Adresse commerciale 3", 
         "Adresse commerciale 4", "Adresse commerciale 5", "Adresse commerciale 6",
-        "Adresse commerciale 7", "Adresse commerciale 8"  # New columns
+        "Adresse commerciale 7", "Adresse commerciale 8"
     ]
 
     with open(filename, "a", newline="", encoding="utf-8") as file:
@@ -107,9 +150,15 @@ def main():
     urls = urls_input.split('\n') if urls_input else []
     proxy = st.text_input("Enter Proxy (Optional):")
 
+    # Recommended delay information
+    st.write("### Recommended Delay Between Requests:")
+    st.write("- **Minimum Delay:** 60-120 seconds between requests.")
+    st.write("- **Moderate Delay:** 120-180 seconds for more cautious scraping.")
+    st.write("- **Maximum Delay:** 180-300 seconds to stay under the radar and avoid detection.")
+
     # Settings
-    max_workers = st.slider("Max concurrent requests", 1, 10, 5, help="Adjust the number of concurrent requests.")
-    delay = st.slider("Random delay between requests (seconds)", 1, 10, 3, help="Add a random delay to avoid being blocked.")
+    max_workers = st.slider("Max concurrent requests", 1, 5, 1, help="Adjust the number of concurrent requests. Maximum is 5.")
+    delay = st.slider("Random delay between requests (seconds)", 60, 300, 100, help="Add a random delay to avoid being blocked. Minimum delay is 60 seconds.")
 
     if st.button("Start Scraping") and urls:
         total_urls = len(urls)
@@ -123,8 +172,16 @@ def main():
 
         start_time = time.time()
 
+        # Generate a unique filename for the CSV file
+        filename = f"amazon_sellers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+        # Display the download link and timer
+        st.write(f"### Download Link:")
+        st.write(f"Once scraping is complete, you can download the results here: [Download CSV](/{filename})")
+        st.write(f"Estimated time remaining: Calculating...")
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(extract_seller_info, url.strip(), proxy): url for url in urls if url.strip()}
+            futures = {executor.submit(extract_seller_info, url.strip(), proxy, delay): url for url in urls if url.strip()}
             for index, future in enumerate(concurrent.futures.as_completed(futures)):
                 result = future.result()
                 if "Error" in result:
@@ -144,10 +201,9 @@ def main():
                     f"Elapsed time: {timedelta(seconds=int(elapsed_time))} | "
                     f"Estimated time remaining: {timedelta(seconds=int(estimated_time_remaining))}"
                 )
-                time.sleep(random.uniform(1, delay))  # Random delay
+                time.sleep(random_delay(delay))  # Random delay around user-specified delay
 
         # Save results to CSV
-        filename = f"amazon_sellers_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         save_to_csv(all_data, filename)
 
         # Display preview of the first 10 results
