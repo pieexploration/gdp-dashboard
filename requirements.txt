@@ -2,3 +2,5 @@ streamlit
 requests
 beautifulsoup4
 pandas
+selenium
+webdriver-manager
